@@ -4,8 +4,8 @@ class Solve (engine: Engine) {
   import engine._
 
   def validChange (puzzle: Puzzle, newPartial: Partial, row: Int, column: Int): Boolean =
-    regionPotentialStars (puzzle, newPartial, puzzle (row)(column)) >= stars &&
-      regionStars (puzzle, newPartial, puzzle (row)(column)) <= stars &&
+    regionPotentialStars (puzzle, newPartial, puzzle.regionAt (row, column)) >= stars &&
+      regionStars (puzzle, newPartial, puzzle.regionAt (row, column)) <= stars &&
       lengthPotentialStars (newPartial, row, isRow = true) >= stars &&
       lengthStars (newPartial, row, isRow = true) <= stars &&
       lengthPotentialStars (newPartial, column, isRow = false) >= stars &&
@@ -26,60 +26,36 @@ class Solve (engine: Engine) {
           assumed match {
             case StarCell =>
               val toEmpty = neighbours ((row, column)).filter (c => newPartial (c._1)(c._2) != EmptyCell) ++
-                ((if (regionStars (puzzle, newPartial, puzzle (row)(column)) == stars)
-                  regionCoordinates (puzzle, puzzle (row)(column)) else Nil) ++
+                ((if (regionStars (puzzle, newPartial, puzzle.regionAt (row, column)) == stars)
+                  puzzle.regionCoordinates (puzzle.regionAt (row, column)) else Nil) ++
                 (if (lengthStars (newPartial, row, isRow = true) == stars)
-                  lengthCoordinates (row, isRow = true) else Nil) ++
+                  puzzle.rowCoordinates (row) else Nil) ++
                 (if (lengthStars (newPartial, column, isRow = false) == stars)
-                  lengthCoordinates (column, isRow = false) else Nil)).
+                  puzzle.columnCoordinates (column) else Nil)).
                 filter (c => newPartial (c._1)(c._2) == UnknownCell)
               hypothesise (puzzle, newPartial, (toEmpty.map (c => (c._1, c._2, EmptyCell)) ++ hypotheses.tail).distinct)
             case EmptyCell =>
               val toFill =
-                ((if (regionPotentialStars (puzzle, newPartial, puzzle (row)(column)) == stars)
-                  regionCoordinates (puzzle, puzzle (row)(column)) else Nil) ++
+                ((if (regionPotentialStars (puzzle, newPartial, puzzle.regionAt (row, column)) == stars)
+                  puzzle.regionCoordinates (puzzle.regionAt (row, column)) else Nil) ++
                   (if (lengthPotentialStars (newPartial, row, isRow = true) == stars)
-                    lengthCoordinates (row, isRow = true) else Nil) ++
+                    puzzle.rowCoordinates (row) else Nil) ++
                   (if (lengthPotentialStars (newPartial, column, isRow = false) == stars)
-                    lengthCoordinates (column, isRow = false) else Nil)).
+                    puzzle.columnCoordinates (column) else Nil)).
                   filter (c => newPartial (c._1)(c._2) == UnknownCell)
               hypothesise (puzzle, newPartial, (toFill.map (c => (c._1, c._2, StarCell)).toVector ++ hypotheses.tail).distinct)
           }
         case _ =>
-          //println ("Covering " + state (row)(column))
           if (state (row)(column) == assumed) Some (state) else None
       }
     }
   }
 
-  def validCoordinate (coordinate: (Int, Int)): Boolean =
-    coordinate._1 >= 0 && coordinate._2 >= 0 && coordinate._1 < size && coordinate._2 < size
-
-  def translate (coordinate: (Int, Int), difference: (Int, Int)): Option[(Int, Int)] = {
-    val translated = (coordinate._1 + difference._1, coordinate._2 + difference._2)
-    if (validCoordinate (translated)) Some (translated) else None
-  }
-
-  def neighbours (coordinate: (Int, Int)): Vector[(Int, Int)] =
-    directions.flatMap (d => translate (coordinate, d))
-
-  def starAdjacents (partial: Partial): Vector[(Int, Int)] =
-    coordinates.filter (c => neighbours (c).exists (n => partial (n._1)(n._2) == StarCell))
-
-  def allRegions (puzzle: Puzzle): Vector[Int] =
-    puzzle.flatten.distinct
-
-  def regionCoordinates (puzzle: Puzzle, region: Int): Vector[(Int, Int)] =
-    coordinates.filter (c => puzzle (c._1)(c._2) == region)
-
-  def lengthCoordinates (index: Int, isRow: Boolean): Vector[(Int, Int)] =
-    if (isRow) axis.map (c => (index, c)) else axis.map (r => (r, index))
-
   def regionStars (puzzle: Puzzle, partial: Partial, region: Int): Int =
-    regionCoordinates (puzzle, region).count (c => partial (c._1)(c._2) == StarCell)
+    puzzle.regionCoordinates (region).count (c => partial (c._1)(c._2) == StarCell)
 
   def regionPotentialStars (puzzle: Puzzle, partial: Partial, region: Int): Int =
-    regionCoordinates (puzzle, region).count (c => partial (c._1)(c._2) != EmptyCell)
+    puzzle.regionCoordinates (region).count (c => partial (c._1)(c._2) != EmptyCell)
 
   def lengthStars (partial: Partial, index: Int, isRow: Boolean): Int =
     axis.count (other => if (isRow) partial (index)(other) == StarCell else partial (other)(index) == StarCell)
@@ -88,23 +64,21 @@ class Solve (engine: Engine) {
     axis.count (other => if (isRow) partial (index)(other) != EmptyCell else partial (other)(index) != EmptyCell)
 
   def orderCellsByCriticality (puzzle: Puzzle): Vector[(Int, Int)] =
-    allRegions (puzzle).sortBy (regionCoordinates (puzzle, _).size).flatMap (regionCoordinates (puzzle, _))
+    puzzle.regions.sortBy (puzzle.regionCoordinates (_).size).flatMap (puzzle.regionCoordinates)
 
-  def solutions (puzzle: Puzzle): Vector[Partial] = {
+  def solutions (puzzle: Puzzle, stopAt2: Boolean): Vector[Partial] = {
     val orderedCoords = orderCellsByCriticality (puzzle)
 
     def solutionsAssuming (partials: Vector[Partial], found: Vector[Partial]): Vector[Partial] = {
       if (partials.isEmpty) found else
       orderedCoords.find (c => partials.head (c._1)(c._2) == UnknownCell) match {
         case None =>
-          solutionsAssuming (partials.tail, partials.head +: found)
+          if (stopAt2 && found.nonEmpty)
+            partials.head +: found
+          else
+            solutionsAssuming (partials.tail, partials.head +: found)
         case Some ((row, column)) =>
-          /*println ("A: " + orderedCoords.count (c => partials.head (c._1)(c._2) == UnknownCell))
-          val hypothesis1 = hypothesise (puzzle, partials.head, row, column, StarCell)
-          hypothesis1.foreach (s => println ("B: " + orderedCoords.count (c => s (c._1)(c._2) == UnknownCell)))
-          val hypothesis2 = hypothesise (puzzle, partials.head, row, column, EmptyCell)
-          hypothesis2.foreach (s => println ("C: " + orderedCoords.count (c => s (c._1)(c._2) == UnknownCell)))*/
-          solutionsAssuming (partials.tail ++ hypothesise (puzzle, partials.head, row, column, StarCell) ++
+          solutionsAssuming (hypothesise (puzzle, partials.head, row, column, StarCell).toVector ++ partials.tail ++
             hypothesise (puzzle, partials.head, row, column, EmptyCell), found)
       }
     }

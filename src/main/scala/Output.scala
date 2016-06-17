@@ -22,9 +22,9 @@ class Output (configuration: Engine) {
     fillRect (0, 0, canvas.getWidth, canvas.getHeight)
     for (row <- axis; column <- axis) {
       line (column * cellPixels, row * cellPixels, cellPixels, 0,
-        if (row == 0 || puzzle (row)(column) != puzzle (row - 1)(column)) BLACK else LIGHT_GRAY)
+        if (row == 0 || puzzle.regionAt (row, column) != puzzle.regionAt (row - 1, column)) BLACK else LIGHT_GRAY)
       line (column * cellPixels, row * cellPixels, 0, cellPixels,
-        if (column == 0 || puzzle (row)(column) != puzzle (row)(column - 1)) BLACK else LIGHT_GRAY)
+        if (column == 0 || puzzle.regionAt (row, column) != puzzle.regionAt (row, column - 1)) BLACK else LIGHT_GRAY)
     }
     line (0, size * cellPixels, size * cellPixels, 0, BLACK)
     line (size * cellPixels, 0, 0, size * cellPixels, BLACK)
@@ -54,9 +54,9 @@ class Output (configuration: Engine) {
     fillRect (0, 0, canvas.getWidth, canvas.getHeight)
     for (row <- axis; column <- axis) {
       line (column * cellPixels, row * cellPixels, cellPixels, 0,
-        if (row == 0 || puzzle (row)(column) != puzzle (row - 1)(column)) BLACK else LIGHT_GRAY)
+        if (row == 0 || puzzle.regionAt (row, column) != puzzle.regionAt (row - 1, column)) BLACK else LIGHT_GRAY)
       line (column * cellPixels, row * cellPixels, 0, cellPixels,
-        if (column == 0 || puzzle (row)(column) != puzzle (row)(column - 1)) BLACK else LIGHT_GRAY)
+        if (column == 0 || puzzle.regionAt (row, column) != puzzle.regionAt (row, column - 1)) BLACK else LIGHT_GRAY)
       if (partial (row)(column) == StarCell)
         star (column * cellPixels + cellPixels / 2, row * cellPixels + cellPixels / 2, cellPixels - 4)
     }
@@ -69,7 +69,7 @@ class Output (configuration: Engine) {
 
   def puzzleToString (puzzle: Puzzle) = {
     def edge (row: Int, column: Int, dRow: Int, dColumn: Int): String =
-      if (row + dRow < 0 || column + dColumn < 0 || puzzle (row)(column) != puzzle (row + dRow)(column + dColumn))
+      if (row + dRow < 0 || column + dColumn < 0 || puzzle.regionAt (row, column) != puzzle.regionAt (row + dRow, column + dColumn))
         "#" else if (dRow == 0) "|" else "-"
     (for (row <- axis) yield {
       val twoRows = (for (column <- axis) yield

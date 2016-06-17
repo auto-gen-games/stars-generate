@@ -24,7 +24,7 @@ class Generate (engine: Engine) extends App {
     generateAll (stars, previousRowStars.toVector, Vector[Int] ()).get
   }
 
-  def generateGridStars = {
+  def generateGridStars: Vector[(Int, Int)] = {
     def generateFollowing (row: Int, previousRowStars: Iterable[Int]): Vector[(Int, Int)] =
       if (row == size) Vector[(Int, Int)] () else {
         val next = generateRowStars (previousRowStars)
@@ -93,17 +93,16 @@ class Generate (engine: Engine) extends App {
 
   def generatePuzzle: Puzzle = {
     val starMap = StarMap (size, generateGridStars)
-    //val starGrid = axis.map (r => axis.map (c => starPositions.contains ((r, c))))
     val startRegions = RegionSet (starMap.starPositions.map (p => new Region (p, starMap)))
     expandToCompletion (startRegions) match {
       case None => generatePuzzle
-      case Some (puzzle) => axis.map (r => axis.map (c => puzzle.allocation ((r, c)).get.uniqueID))
+      case Some (finalRegions) => new Puzzle (engine, finalRegions)
     }
   }
 
   def generateUntilValid: (Puzzle, Partial) = {
     val puzzle = generatePuzzle
-    val solutions = solve.solutions (puzzle)
+    val solutions = solve.solutions (puzzle, stopAt2 = true)
     if (solutions.size == 1) (puzzle, solutions.head) else { print ("."); generateUntilValid }
   }
 
